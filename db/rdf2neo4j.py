@@ -1,7 +1,7 @@
 def prep_vertex_all():
     ferror = open("err_vertex.csv",'w')
     frname = "vertex.csv"
-    fwname = "vertex_output_vertex_all.csv"
+    fwname = "vertex_output_all.csv"
     with open(frname, 'r') as fr:
         with open(fwname, 'w') as fw:
             fw.write("{},{},{}\n".format(":ID", "name", ":LABEL"))
@@ -13,7 +13,7 @@ def prep_vertex_all():
                         continue
                     spo = line.split(",")
                     # print(spo)
-                    fw.write("{},{},{}\n".format(spo[0], spo[1].replace('"',''), "ENTITY"))
+                    fw.write("{},{},{}\n".format(spo[0].replace('"',''), spo[1].replace('"',''), "ENTITY"))
                 except:
                     ferror.write("{}\n".format(line))
                     continue
@@ -35,7 +35,7 @@ def prep_edge_all():
                         continue
                     spo = line.split(",")
                     # print(spo)
-                    fw.write("{},{},{},{}\n".format(spo[0], spo[2].replace('"', ''), spo[1], "RELATIONSHIP"))
+                    fw.write("{},{},{},{}\n".format(spo[0].replace('"',''), spo[2].replace('"', ''), spo[1].replace('"',''), "RELATIONSHIP"))
                 except:
                     ferror.write("{}\n".format(line))
                     continue

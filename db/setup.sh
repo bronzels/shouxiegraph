@@ -81,16 +81,6 @@ echo "dbms.allow_upgrade=true" >> neo4j-conf/neo4j.conf
 wget -c https://raw.githubusercontent.com/neo4j-graph-examples/graph-data-science2/main/data/airport-node-list.csv
 wget -c https://raw.githubusercontent.com/neo4j-graph-examples/graph-data-science2/main/data/iroutes-edges.csv
 
-git clone git@github.com:vesoft-inc/nebula-docker-compose
-cd nebula-docker-compose
-docker compose up -d
-docker run --rm -ti --network nebula-docker-compose_nebula-net --entrypoint=/bin/sh vesoft/nebula-console
-    nebula-console -u root -p root --address=graphd --port=9669
-mkdir nebula-graph-studio
-tar xzvf nebula-graph-studio-3.10.0.tar.gz -C nebula-graph-studio
-cd nebula-graph-studio
-docker compose up -d
-
 unzip -d ownthink_v2.zip
 #手输密码，不要paste：https://www.ownthink.com/
 wc -l ownthink_v2.csv
@@ -102,10 +92,38 @@ cd ..
 
 rdf-converter/rdf-converter --path ownthink_v2.csv
 python rdf2neo4j.py
-docker exec -it neo4j neo4j-admin import --database ownthink \
-                                         --mode=csv \
-                                         --id-type=STRING --multiline-fields=true \
-                                         --nodes "ertex_output_all.csv" \
-                                         --relationships "edge_output_all.csv"
-                                         --ignore-duplicate-nodes=true \
-                                         --ignore-missing-nodes=true
+mv ver
+#docker exec -it neo4j neo4j stop
+#新命令必须要先停止neo4j，但是这个进程是容器命令入口
+docker inspect neo4j:5.22.0
+docker stop neo4j && docker rm neo4j
+docker run -d --restart=always \
+    -p 7474:7474 -p 7687:7687 \
+    -v $PWD/neo4j-data:/data \
+    -v $PWD/neo4j-plugins:/plugins \
+    -v $PWD/neo4j-import:/var/lib/neo4j/import \
+    -v $PWD/neo4j-conf:/var/lib/neo4j/conf \
+    --name neo4j \
+    --entrypoint "tail" \
+    neo4j:5.22.0 \
+    -F /dev/null
+docker exec -it neo4j neo4j-admin database import full \
+        --verbose \
+        --id-type=STRING --multiline-fields=true \
+        --skip-duplicate-nodes=true \
+        --skip-bad-relationships=true \
+        --nodes "/var/lib/neo4j/import/vertex_output_all.csv" \
+        --relationships "/var/lib/neo4j/import/edge_output_all.csv" \
+        --overwrite-destination=true neo4j
+#Caused by: org.neo4j.internal.batchimport.input.InputException: Too many bad entries 1008, where last one was: Id '曾斯维尔（Zanesville' is defined more than once in group 'global id space'
+#错误太多没法导入
+
+git clone git@github.com:vesoft-inc/nebula-docker-compose
+cd nebula-docker-compose
+docker compose up -d
+docker run --rm -ti --network nebula-docker-compose_nebula-net --entrypoint=/bin/sh vesoft/nebula-console
+    nebula-console -u root -p root --address=graphd --port=9669
+mkdir nebula-graph-studio
+tar xzvf nebula-graph-studio-3.10.0.tar.gz -C nebula-graph-studio
+cd nebula-graph-studio
+docker compose up -d
