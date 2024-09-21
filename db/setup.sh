@@ -91,3 +91,21 @@ tar xzvf nebula-graph-studio-3.10.0.tar.gz -C nebula-graph-studio
 cd nebula-graph-studio
 docker compose up -d
 
+unzip -d ownthink_v2.zip
+#手输密码，不要paste：https://www.ownthink.com/
+wc -l ownthink_v2.csv
+
+git clone git@github.com:jievince/rdf-converter.git
+cd rdf-converter
+go build
+cd ..
+
+rdf-converter/rdf-converter --path ownthink_v2.csv
+python rdf2neo4j.py
+docker exec -it neo4j neo4j-admin import --database ownthink \
+                                         --mode=csv \
+                                         --id-type=STRING --multiline-fields=true \
+                                         --nodes "ertex_output_all.csv" \
+                                         --relationships "edge_output_all.csv"
+                                         --ignore-duplicate-nodes=true \
+                                         --ignore-missing-nodes=true
