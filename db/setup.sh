@@ -54,8 +54,21 @@ docker run -d --restart=always \
     -e NEO4J_apoc_export_file_enabled=true \
     -e NEO4J_apoc_import_file_enabled=true \
     -e NEO4J_apoc_import_file_use__neo4j__config=true \
+    -e NEO4J_apoc.trigger.enabled=true \
+    -e NEO4J_apoc.trigger.refresh=60000 \
     -e NEO4J_dbms_security_procedures_unrestricted=apoc.\*,gds.\* \
     neo4j:5.22.0
+#除了apoc.trigger的环境变量都没有修改到配置文件里去
+docker run -d --restart=always \
+    -p 7474:7474 -p 7687:7687 \
+    -v $PWD/neo4j-data:/data \
+    -v $PWD/neo4j-plugins:/plugins \
+    -v $PWD/neo4j-import:/var/lib/neo4j/import \
+    -v $PWD/neo4j-conf:/var/lib/neo4j/conf \
+    --name neo4j \
+    neo4j:5.22.0
+docker exec -it neo4j cat /var/lib/neo4j/conf/apoc.conf
+docker exec -it neo4j cat /var/lib/neo4j/conf/neo4j.conf|grep dbms.security.procedures.unrestricted
 
 git clone git@github.com:usstzcx/KGData.git
 docker exec -it neo4j neo4j-admin import --database baike.db \

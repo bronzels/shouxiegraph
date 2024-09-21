@@ -2,7 +2,7 @@ MATCH(n) RETURN n
 
 CREATE (n:Person {name:'John'}) RETURN n
 
-`CREATE (n:Person {name:'Sally'}) RETURN n;`
+CREATE (n:Person {name:'Sally'}) RETURN n;
 CREATE (n:Person {name:'Steve'}) RETURN n;
 CREATE (n:Person {name:'Mike'}) RETURN n;
 CREATE (n:Person {name:'Liz'}) RETURN n;
@@ -27,12 +27,12 @@ MATCH (a:Person {name:'Liz'})-[r:FRIENDS]->(b:Person {name:'Mike'})
 
 MATCH (a:Person {name:'Liz'}), 
       (b:Person {name:'Mike'})
-MERGE (a)-[:FRIENDS]->(b)
+MERGE (a)-[:FRIENDS]->(b);
 
 MATCH (a:Person {name:'Liz'}),
       (b:Person {name:'Mike'})
 MERGE (a)-[rel:FRIENDS]->(b)
-SET rel.since=2001
+SET rel.since=2001;
 
 
 MATCH (a:Person {name:'Sally'}),
@@ -41,6 +41,10 @@ MERGE (a)-[:FRIENDS {since:2021}]->(b);
 
 MATCH (a:Person {name:'Mike'}),
       (b:Person {name:'Steve'})
+MERGE (a)-[:FRIENDS {since:2021}]->(b);
+
+MATCH (a:Person {name:'Shawn'}),
+      (b:Person {name:'Liz'})
 MERGE (a)-[:FRIENDS {since:2021}]->(b);
 
 MATCH ()-[r:FRIENDS]->()
@@ -242,6 +246,10 @@ CALL dbms.functions() YIELD name WHERE name STARTS WITH 'apoc.' RETURN COUNT(nam
 UNION
 CALL dbms.procedures() YIELD name WHERE name STARTS WITH 'apoc.' RETURN COUNT(name)
 #5.22没有这2个函数
+SHOW FUNCTIONS YIELD name, description WHERE name STARTS WITH 'apoc.' RETURN COUNT(name) AS cnt
+UNION
+SHOW PROCEDURES YIELD name, description WHERE name STARTS WITH 'apoc.' RETURN COUNT(name) AS cnt
+#不知道为啥union这里不能用
 
 MATCH(n) DETACH DELETE n
 
@@ -255,3 +263,140 @@ FOREACH(id in range(1,1000) | CREATE (n:NodeLabel{id:id}))
 
 MATCH (n1:NodeLabel),(n2:NodeLabel) WITH n1, n2 LIMIT 1000000 WHERE rand()<0.1
 CREATE (n1)-[:REL_TYPE]->(n2)
+
+MERGE (mark:Person {name: "Mark"})
+MERGE (neo4jMeetup:Meetup {name: "Neo4j London Meetup"})
+MERGE (bigDataMeetup:Meetup {name: "Big Data Meetup"})
+MERGE (dataScienceMeetup:Meetup {name: "Data Science Meetup"})
+MERGE (dataScience:Topic {name: "Data Science"})
+MERGE (databases:Topic {name: "Databases"})
+MERGE (neo4jMeetup)-[:HAS_TOPIC]->(dataScience)
+MERGE (neo4jMeetup)-[:HAS_TOPIC]->(databases)
+MERGE (bigDataMeetup)-[:HAS_TOPIC]->(dataScience)
+MERGE (bigDataMeetup)-[:HAS_TOPIC]->(databases)
+MERGE (dataScienceMeetup)-[:HAS_TOPIC]->(dataScience)
+MERGE (dataScienceMeetup)-[:HAS_TOPIC]->(databases)
+MERGE (mark)-[:MEMBER_OF]->(neo4jMeetup)
+MERGE (mark)-[:MEMBER_OF]->(bigDataMeetup)
+
+MATCH(n) WHERE n:Person OR n:Meetup OR n:Topic RETURN n
+
+#切换到system
+:USE neo4j
+#不需要切换到system
+CALL apoc.trigger.add(
+    "interests",  
+    "
+UNWIND [rel in $createdRelationships WHERE type(rel) = 'MEMBER_OF'] AS rel
+WITH startNode(rel) AS start, endNode(rel) AS end
+MATCH (start)-[:MEMBER_OF]->()-[:HAS_TOPIC]->(topic)
+WHERE not((start)-[:INTERESTED_IN]->(topic))
+WITH start, topic, count(*)
+AS count  WHERE count >= 3
+MERGE (start)-[interestedIn:INTERESTED_IN]->(topic)
+SET interestedIn.tentative = true",
+{phase:'before'}
+)
+
+MATCH (mark:Person {name: "Mark"})
+MATCH (dataScienceMeetup:Meetup {name: "Data Science Meetup"})
+MERGE (mark)-[:MEMBER_OF]->(dataScienceMeetup)
+
+#广度优先
+MATCH (p:Person {name:'Shawn'})-[*0..1]->(x)
+RETURN x
+MATCH (p:Person {name:'Shawn'})-[*0..2]->(x)
+RETURN x
+MATCH (p:Person {name:'Shawn'})-[*0..3]->(x)
+RETURN x
+
+MATCH (p:Person)
+WHERE p.work =~ '.*之家'
+RETURN p
+MATCH (p:Person)
+WHERE p.work ENDS WITH '之家'
+RETURN p
+MATCH (p:Person)
+WHERE p.work =~ '月亮.*'
+RETURN p
+MATCH (p:Person)
+WHERE p.work STARTS WITH '月亮'
+RETURN p
+MATCH (p:Person)
+WHERE p.work =~ '.*光小.*'
+RETURN p
+MATCH (p:Person)
+WHERE p.work CONTAINS '光'
+RETURN p LIMIT 3
+
+MATCH p=()-[*0..1]->(n:Person {name: 'Liz'})-[*0..1]->()
+return p
+MATCH p=()-[*0..2]->(n:Person {name: 'Liz'})-[*0..2]->()
+return p
+
+
+MERGE (a:User{key: 1})
+MERGE (b:Tags{key: 2})
+MERGE (c:Post{key: 3})
+MERGE (d:Comment{key: 4})
+MERGE (e:Comment{key: 5})
+MERGE (f:Comment{key: 6})
+MERGE (g:User{key: 7})
+MERGE (h:User{key: 8})
+MERGE (i:Post{key: 9})
+MERGE (j:Tags{key: 10})
+MERGE (k:Post{key: 11})
+MERGE (l:Comment{key: 12})
+
+
+MERGE (a)-[:CREATE]-(b)
+MERGE (a)-[:CREATE]-(c)
+MERGE (a)-[:REACT]-(c)
+MERGE (a)-[:CREATE]-(d)
+MERGE (a)-[:REACT]-(d)
+MERGE (b)-[:RELATED]-(c)
+MERGE (d)-[:REPLY]-(c)
+MERGE (d)-[:REPLY]-(d)
+MERGE (h)-[:REACT]-(c)
+MERGE (g)-[:REACT]-(c)
+MERGE (h)-[:CREATE]-(j)
+MERGE (j)-[:RELATED]-(c)
+MERGE (g)-[:CREATE]-(i)
+MERGE (e)-[:REPLY]-(i)
+MERGE (f)-[:REPLY]-(i)
+MERGE (a)-[:REPLY]-(i)
+MERGE (h)-[:CREATE]-(k)
+MERGE (l)-[:REPLY]-(k)
+MERGE (a)-[:REACT]-(l)
+
+MATCH(n) WHERE n:User OR n:Tags OR n:Post OR n:Comment RETURN n
+
+MATCH(u:User)-[:CREATE]->(p:Post)
+WITH u, p
+MATCH(u:User)-[:REACT]->(p)
+return u, p
+
+MATCH (uA:User {key:1}), (uB:User {key:8}),
+p=shortestPath((uA)-[*..10]-(uB))
+RETURN p
+
+MATCH (u:User)
+RETURN COUNT(u) AS user_num
+
+MATCH(u:User{key:1})
+CALL apoc.path.expandConfig(u, {maxLevel: 3,
+relationshipFilter: 'CREATE>,REACT|REPLY,CREATE>|RELATED,REPLY>|CREATE',
+uniqueness:"RELATIONSHIP_GLOBAL"})
+YIELD path
+RETURN path
+
+MATCH(n:User{key:1})
+CALL apoc.path.expandConfig(n, {maxLevel: 3,
+relationshipFilter: 'CREATE>,REACT|REPLY,CREATE>|RELATED,REPLY>|CREATE',
+uniqueness:"RELATIONSHIP_GLOBAL"})
+YIELD path
+WITH n, RELATIONSHIPS(path) as r, LAST(NODES(path)) as es
+RETURN n,es,r limit 100
+
+
+

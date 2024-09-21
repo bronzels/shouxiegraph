@@ -139,3 +139,208 @@ totalCost,
 costs,
 nodes(path) AS path
 ORDER BY index
+
+MERGE (home:Page {name:"Home"})
+MERGE (about:Page {name:"About"})
+MERGE (product:Page {name:"Product"})
+MERGE (links:Page {name:"Links"})
+MERGE (a:Page {name:"Site A"})
+MERGE (b:Page {name:"Site B"})
+MERGE (c:Page {name:"Site C"})
+MERGE (d:Page {name:"Site D"})
+MERGE (home)-[:LINKS]->(about)
+MERGE (about)-[:LINKS]->(home)
+MERGE (product)-[:LINKS]->(home)
+MERGE (home)-[:LINKS]->(product)
+MERGE (links)-[:LINKS]->(home)
+MERGE (home)-[:LINKS]->(links)
+MERGE (links)-[:LINKS]->(a)
+MERGE (a)-[:LINKS]->(home)
+MERGE (links)-[:LINKS]->(b)
+MERGE (b)-[:LINKS]->(home)
+MERGE (links)-[:LINKS]->(c)
+MERGE (c)-[:LINKS]->(home)
+MERGE (links)-[:LINKS]->(d)
+MERGE (d)-[:LINKS]->(home)
+
+
+CALL gds.graph.project(
+  'myGraph',
+  'Page',
+  'LINKS'
+)
+
+CALL gds.pageRank.write.estimate(
+    'myGraph',
+    {
+        writeProperty: "pageRank",
+        maxIterations: 20,
+        dampingFactor: 0.85
+    }
+)
+YIELD nodeCount, relationshipCount, bytesMin, bytesMax, requiredMemory
+
+MATCH (sizeA: Page {name: "Site A"})
+CALL gds.pageRank.stream('myGraph')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name, score
+ORDER by score DESC
+
+CALL gds.graph.project(
+    'myGraphUndirected',
+    'Page', 
+    { LINKS: 
+        { orientation: 'UNDIRECTED' } 
+    }
+)
+
+CALL gds.randomWalk.stream(
+    'myGraph',
+    {
+        walkLength: 3,
+        walksPerNode: 1,
+        randomSeed: 42,
+        concurrency: 1
+    }
+)
+YIELD nodeIds, path
+RETURN nodeIds, [node in nodes(path) | node.name] AS pages
+#每个节点都会返回一条游走记录，一共8条记录
+#增加一个节点
+MATCH (links:Page {name:"Links"}), (home:Page {name:"Home"})
+MERGE (e:Page {name:"Site E"})
+MERGE (links)-[:LINKS]->(e)
+MERGE (e)-[:LINKS]->(home)
+#再次执行游走，还是8条记录，Site E并没有出现在游走记录里，证明project不会实时生效
+CALL gds.graph.drop('myGraph')
+#删除再重新创建，再次指向相同游走，有9条记录了
+MATCH (links:Page {name:"Links"}), (home:Page {name:"Home"})
+MERGE (f:Page {name:"Site F"})
+MERGE (links)-[:LINKS]->(f)
+MERGE (f)-[:LINKS]->(home)
+#在增加一个节点还是一样
+
+MATCH (links:Page {name:"Links"})-[:LINKS]->(e:Page {name:"Site E"})
+DETACH DELETE links
+
+
+MATCH (page:Page)
+WHERE page.name in ['Home', 'About']
+WITH COLLECT(page) AS sourceNodes
+CALL gds.randomWalk.stream(
+    'myGraph',
+    {
+        sourceNodes: sourceNodes,
+        walkLength: 3,
+        walksPerNode: 1,
+        randomSeed: 42,
+        concurrency: 1
+    }
+)
+YIELD nodeIds, path
+RETURN nodeIds, [node in nodes(path) | node.name] AS pages
+
+CALL gds.randomWalk.stats(
+    'myGraph',
+    {
+        walkLength: 3,
+        walksPerNode: 1,
+        randomSeed: 42,
+        concurrency: 1
+    }
+)
+
+#CALL gds.graph.create.cypher(
+CALL gds.graph.project.cypher(
+    'myGraphCypher',
+    'MATCH(n:Page) RETURN id(n) AS id,labels(n) AS labels', 
+    'MATCH(u:Page)-[:LINKS]->(v:Page) RETURN id(u) AS source, id(v) AS target'
+)
+#project是native投影，cyper投影只选一部分数据
+SHOW PROCEDURES YIELD name, description WHERE name STARTS WITH 'gds.'
+#5.0函数名不一样了
+#执行相同的随机游走算法，结果相同
+
+CREATE (a:Location {name:'A'}),
+       (b:Location {name: 'B'}),
+       (c:Location {name: 'C'}),
+       (d:Location {name: 'D'}),
+       (e:Location {name: 'E'}),
+       (f:Location {name: 'F'}),
+       (a)-[:ROAD {cost: 50}]->(b),
+       (a)-[:ROAD {cost: 50}]->(c),
+       (a)-[:ROAD {cost: 100}]->(d),
+       (b)-[:ROAD {cost: 40}]->(d),
+       (c)-[:ROAD {cost: 40}]->(d),
+       (c)-[:ROAD {cost: 80}]->(e),
+       (d)-[:ROAD {cost: 30}]->(e),
+       (d)-[:ROAD {cost: 80}]->(f),
+       (e)-[:ROAD {cost: 40}]->(f);
+
+CALL gds.graph.project(
+    'myGraphLocation',
+    'Location',
+    'ROAD',
+    {
+        relationshipProperties: 'cost'
+    }
+)
+
+MATCH (source:Location {name: 'A'}), (target:Location {name: 'F'})
+CALL gds.shortestPath.dijkstra.write.estimate('myGraphLocation', {
+    sourceNode: source,
+    targetNode: target,
+    relationshipWeightProperty: 'cost',
+    writeRelationshipType: 'PATH'
+})
+YIELD nodeCount, relationshipCount, bytesMin, bytesMax, requiredMemory
+RETURN nodeCount, relationshipCount, bytesMin, bytesMax, requiredMemory
+
+MATCH (source:Location {name: 'A'}), (target:Location {name: 'F'})
+CALL gds.shortestPath.dijkstra.stream('myGraphLocation', {
+    sourceNode: source,
+    targetNode: target,
+    relationshipWeightProperty: 'cost'
+})
+YIELD index, sourceNode, targetNode, totalCost, nodeIds, costs, path
+RETURN
+    index,
+    gds.util.asNode(sourceNode).name AS sourceNodeName,
+    gds.util.asNode(targetNode).name AS targetNodeName,
+    totalCost,
+    [nodeId IN nodeIds | gds.util.asNode(nodeId).name] AS nodeNames,
+    costs,
+    nodes(path) as path
+ORDER BY index
+
+CREATE (alice:People {name:'Alice'})
+CREATE (bob:People{name: 'Bob'})
+CREATE (carol:People{name: 'Carol'})
+CREATE (dave:People{name: 'Dave'})
+CREATE (eve:People{name: 'Eve'})
+CREATE (guitar:Instrument {name: 'Guitar'})
+CREATE (synth:Instrument {name: 'Synthesizer'})
+CREATE (bongos:Instrument {name: 'Bongos'})
+CREATE (trumpet:Instrument {name: 'Trumpet'})
+CREATE (alice)-[:LIKES]->[guitar]
+CREATE (alice)-[:LIKES]->(synth)
+CREATE (alice)-[:LIKES]->(bongos)
+CREATE (bob)-[:LIKES]->(guitar)
+CREATE (bob)-[:LIKES]->(synth)
+CREATE (carol)-[:LIKES]->(bongos)
+CREATE (dave)-[:LIKES]->(guitar)
+CREATE (dave)-[:LIKES]->(synth)
+CREATE (dave)-[:LIKES]->(bongos);
+
+CALL gds.graph.project(
+    'myGraphLike',
+    ['People', 'Instrument'],
+    'LIKES'
+)
+
+CALL gds.beta.node2vec.stream(
+    'myGraph', 
+    {embeddingDimension: 4}
+)
+YIELD nodeId, embedding
+RETURN gds.util.asNode(nodeId).name, embedding
