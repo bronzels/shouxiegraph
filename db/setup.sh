@@ -117,13 +117,109 @@ docker exec -it neo4j neo4j-admin database import full \
         --overwrite-destination=true neo4j
 #Caused by: org.neo4j.internal.batchimport.input.InputException: Too many bad entries 1008, where last one was: Id '曾斯维尔（Zanesville' is defined more than once in group 'global id space'
 #错误太多没法导入
+docker exec -it neo4j /bin/bash
+    addr=bolt://localhost:7687
+    username=neo4j
+    password=1234abcd
+    cat import/neo4j-clitest.cypher | cypher-shell -a $addr -u $username -p $password --format plain
 
 git clone git@github.com:vesoft-inc/nebula-docker-compose
 cd nebula-docker-compose
+cp docker-compose.yaml docker-compose.yaml.bk
+#修改docker-compose.yaml的host映射端口，方便固定端口来让dashboard连接
+:<<EOF
+  metad0:
+    ports:
+      - "49155:9559"
+      - "49156:19559"
+      - "49157:19560"
+  metad1:
+    ports:
+      - "49158:9559"
+      - "49159:19559"
+      - "49160:19560"
+  metad2:
+    ports:
+      - "49161:9559"
+      - "49162:19559"
+      - "49163:19560"
+  storaged0:
+    ports:
+      - "49164:9779"
+      - "49165:19779"
+      - "49166:19780"
+  storaged1:
+    ports:
+      - "49167:9779"
+      - "49168:19779"
+      - "49169:19780"
+  storaged2:
+    ports:
+      - "49170:9779"
+      - "49171:19779"
+      - "49172:19780"
+  graphd:
+    ports:
+      - "9669:9669"
+      - "49153:19669"
+      - "49154:19670"
+  graphd1:
+    ports:
+      - "49173:9669"
+      - "49174:19669"
+      - "49175:19670"
+  graphd2:
+    ports:
+      - "49176:9669"
+      - "49177:19669"
+      - "49178:19670"
+
+EOF
 docker compose up -d
 docker run --rm -ti --network nebula-docker-compose_nebula-net --entrypoint=/bin/sh vesoft/nebula-console
+    contrl + d
     nebula-console -u root -p root --address=graphd --port=9669
 mkdir nebula-graph-studio
 tar xzvf nebula-graph-studio-3.10.0.tar.gz -C nebula-graph-studio
 cd nebula-graph-studio
+cp docker-compose.yml docker-compose.yml.bk
+#把docker network修改为和nebula集群一直
+sed -i 's/nebula-web/nebula-docker-compose_nebula-net/g' docker-compose.yml
 docker compose up -d
+wget -c https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz
+tar xzvf node_exporter-1.8.2.linux-amd64.tar.gz
+ln -s node_exporter-1.8.2.linux-amd64 node_exporter
+node_exporter/node_exporter
+wget -c https://oss-cdn.nebula-graph.com.cn/nebula-graph-dashboard/3.4.0/nebula-dashboard-3.4.0.x86_64.tar.gz?_gl=1*53gdnn*_ga*MTg1MTI5OTQ0LjE3MjYyODIxNjg.*_ga_BGGB2REDGM*MTcyNjkxOTQxOC4yLjAuMTcyNjkxOTQxOC42MC4wLjA.
+tar xzvf nebula-dashboard-3.4.0.x86_64.tar.gz
+cd nebula-dashboard
+cp config.yaml config.yaml.bk
+#根据nebula集群映射到host的端口修改config.yaml，把hostIP和nebulaHostIP都修改为host的IP
+cp docker-compose.yaml docker-compose.yaml.bk
+#把docker network修改为和nebula集群一直
+sed -i 's/nebula-net/nebula-docker-compose_nebula-net/g' docker-compose.yaml
+:<<EOF
+docker run -d --name prometheus -p 19090:9090 \
+  -v $PWD/prometheus.yml:/etc/prometheus/prometheus.yml \
+   --restart=always prom/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time=7d
+#dashboard会自动启动prometheus
+EOF
+#根据nebula-docker-compose的3个一组的graphd/meta/storage的容器，修改端口
+docker network create nebula-net
+docker pull centos:7
+docker compose up -d
+
+docker logs nebula-docker-compose-storaged0-1
+docker logs nebula-docker-compose-storaged1-1
+docker logs nebula-docker-compose-storaged2-1
+docker logs nebula-docker-compose-metad0-1
+docker logs nebula-docker-compose-metad1-1
+docker logs nebula-docker-compose-metad2-1
+docker logs nebula-docker-compose-graphd-1
+docker logs nebula-docker-compose-graphd1-1
+docker logs nebula-docker-compose-graphd2-1
+docker logs nebula-docker-compose-console-1
+docker logs nebula-graph-studio-web-1
+docker logs prometheus
+docker logs nebula-dashboard-nebula-dashboard-1
+#其他容器都没有报错日志，nebula-docker-compose-console-1有连接不到2个graphd的9669端口报错，但是exec，安装telnet可以连接
