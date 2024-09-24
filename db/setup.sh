@@ -208,18 +208,15 @@ EOF
 docker network create nebula-net
 docker pull centos:7
 docker compose up -d
-
-docker logs nebula-docker-compose-storaged0-1
-docker logs nebula-docker-compose-storaged1-1
-docker logs nebula-docker-compose-storaged2-1
-docker logs nebula-docker-compose-metad0-1
-docker logs nebula-docker-compose-metad1-1
-docker logs nebula-docker-compose-metad2-1
-docker logs nebula-docker-compose-graphd-1
-docker logs nebula-docker-compose-graphd1-1
-docker logs nebula-docker-compose-graphd2-1
-docker logs nebula-docker-compose-console-1
-docker logs nebula-graph-studio-web-1
-docker logs prometheus
-docker logs nebula-dashboard-nebula-dashboard-1
 #其他容器都没有报错日志，nebula-docker-compose-console-1有连接不到2个graphd的9669端口报错，但是exec，安装telnet可以连接
+wget -c https://github.com/vesoft-inc/nebula-console/releases/download/v3.8.0/nebula-console-linux-amd64-v3.8.0
+chmod a+x /data0/nebula-console-linux-amd64-v3.8.0
+ln -s /data0/nebula-console-linux-amd64-v3.8.0 /usr/bin/nebula-console
+#dashboard的最后一个功能，配置，总是显示连接到第一个meta/graph/storage的副本端口超时，但是在这些容器里找不到出错日志
+pip install nebula3-python prettytable
+wget -c https://github.com/vesoft-inc/nebula-importer/releases/download/v4.1.0/nebula-importer_4.1.0_Linux_x86_64
+chmod a+x /data0/nebula-importer_4.1.0_Linux_x86_64
+ln -s /data0/nebula-importer_4.1.0_Linux_x86_64 /usr/bin/nebula-importer
+git clone git@github.com:wey-gu/nebulagraph-ai
+#安装配置notebook
+pip install jupyter_nebulagraph ng_ai[jupyter]

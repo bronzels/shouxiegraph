@@ -1,0 +1,49 @@
+CREATE SPACE basketballplayer(partition_num=15, replica_factor=1, vid_type=fixed_string(30));
+
+CREATE TAG player(name string, age int);
+CREATE TAG team(name string);
+CREATE EDGE follow(degree int);
+CREATE EDGE serve(start_year int, end_year int);
+
+INSERT VERTEX player(name, age) VALUES "player100":("Tim Duncan", 42);
+INSERT VERTEX player(name, age) VALUES "player101":("Tony Parker", 36);
+INSERT VERTEX player(name, age) VALUES "player102":("LaMarcus Aldridge", 33);
+INSERT VERTEX team(name) VALUES "team203":("Trail Blazers"), "team204":("Spurs");
+
+INSERT EDGE follow(degree) VALUES "player101" -> "player100":(95);
+INSERT EDGE follow(degree) VALUES "player101" -> "player102":(90);
+INSERT EDGE follow(degree) VALUES "player102" -> "player100":(75);
+INSERT EDGE serve(start_year, end_year) VALUES "player101" -> "team204":(1999, 2018), "player102" -> "team203":(2006, 2015)
+
+GO FROM "player101" OVER follow YIELD id($$);
+GO FROM "player101" OVER follow WHERE PROPERTIES($$).age >= 35 \
+    YIELD properties($$).name as Teammate, PROPERTIES($$).age As Age;
+GO FROM "player101" OVER follow YIELD DST(edge) AS id | \
+GO FROM $-.id OVER serve YIELD PROPERTIES($$).name AS Team,
+PROPERTIES($^).name AS Player;
+
+FETCH PROP ON player "player101" YIELD PROPERTIES(vertex)
+
+UPDATE VERTEX "player101" SET player.name="Tim";
+FETCH PROP ON player "player101" YIELD PROPERTIES(vertex);
+
+UPDATE EDGE ON follow "player101" -> "player100" SET degree = 96;
+FETCH PROP ON follow "player101" -> "player100" YIELD PROPERTIES(edge);
+
+INSERT VERTEX player(name, age) VALUES "player111":("David West", 38);
+UPSERT VERTEX "player111" SET player.name = "David W.", player.age = $^.player.age + 11 \
+WHEN $^.player.name == "David" and $^.player.age > 20 \
+YIELD $^.player.name, .player.age;
+
+DELETE VERTEX "player111", "team203"
+MATCH(n) RETURN n
+DELETE EDGE serve "player101" -> "team204"
+FETCH PROP on serve "player101" -> "team204" YIELD PROPERTIES(edge)
+
+CREATE TAG INDEX IF NOT EXISTS player_index_1 ON player(name(20));
+REBUILD TAG INDEX player_index_1;
+
+LOOKUP ON player WHERE player.name == "Tim Duncan" \
+YIELD PROPERTIES(vertex).name AS name, PROPERTIES(vertex).age AS age
+
+MATCH (p:player {name: "Tim Duncan"}) RETURN p
