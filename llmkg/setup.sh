@@ -1,11 +1,3 @@
-
-:<<EOF
-git clone git@github.com:TommyZihao/QASystemOnMedicalKG.git
-git clone git@github.com:wangle1218/KBQA-for-Diagnosis.git
-git clone git@github.com:google-research/smore.git
-git clone git@github.com:snap-stanford/KGReasoning.git
-EOF
-
-git clone git@github.com:percent4/spo_extract_platform.git
-
-git clone git@github.com:DeqianBai/KBQA-study.git
+#start neo4j
+#start ollama, llama3.2
+pip install tiktoken yfiles_jupyter_graphs python-dotenv
